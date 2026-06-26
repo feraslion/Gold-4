@@ -1,0 +1,6 @@
+name: accounting_suite
+packages:
+  - mobile
+  - desktop
+  - web
+  - packages/*
