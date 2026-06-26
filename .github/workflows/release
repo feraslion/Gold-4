@@ -1,0 +1,365 @@
+name: 🚀 Gold-4 Release Build (APK + Windows EXE)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+      build_number:
+        description: 'Build number'
+        required: true
+        default: '1'
+
+# ─────────────────────────────────────────────
+# متغيرات مشتركة عبر كل الـ jobs
+# ─────────────────────────────────────────────
+env:
+  FLUTTER_VERSION: '3.27.4'
+  JAVA_VERSION: '17'
+  # اسم مجلد التطبيق داخل المونوريبو
+  MOBILE_DIR: mobile
+
+jobs:
+
+# ╔══════════════════════════════════════════╗
+# ║        1 - Android APK Build             ║
+# ╚══════════════════════════════════════════╝
+  build-android:
+    name: 🤖 Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # ── 1. سحب الكود ──────────────────────
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Java ───────────────────────────
+      - name: ☕ Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # ── 3. Flutter ────────────────────────
+      - name: 🐦 Setup Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # ── 4. Pub cache ──────────────────────
+      - name: 📦 Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ env.MOBILE_DIR }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-${{ runner.os }}-
+
+      # ── 5. إعداد keystore للتوقيع ─────────
+      - name: 🔑 Decode & configure keystore
+        env:
+          KEYSTORE_BASE64:    ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS:          ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD:       ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD:     ${{ secrets.STORE_PASSWORD }}
+        run: |
+          echo "▶ writing keystore..."
+          echo "$KEYSTORE_BASE64" | base64 --decode > ${{ env.MOBILE_DIR }}/android/app/keystore.jks
+
+          cat > ${{ env.MOBILE_DIR }}/android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=keystore.jks
+          EOF
+          echo "✅ keystore ready"
+
+      # ── 6. إنشاء .env ─────────────────────
+      - name: 🌍 Create .env file
+        run: |
+          cp .env.example ${{ env.MOBILE_DIR }}/.env 2>/dev/null || true
+          # يمكنك تعديل القيم التالية أو رفعها كـ Secrets
+          cat > ${{ env.MOBILE_DIR }}/.env <<EOF
+          API_BASE_URL=${{ secrets.API_BASE_URL || 'https://api.gold4.app' }}
+          APP_ENV=production
+          EOF
+
+      # ── 7. flutter pub get ────────────────
+      - name: 📥 Install dependencies
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: flutter pub get
+
+      # ── 8. تحديث رقم الإصدار ──────────────
+      - name: 🏷️ Set version
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          VERSION=${{ github.event.inputs.version || github.ref_name }}
+          VERSION=${VERSION#v}
+          BUILD=${{ github.event.inputs.build_number || github.run_number }}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD" >> $GITHUB_ENV
+          # تحديث pubspec.yaml
+          sed -i "s/^version:.*/version: $VERSION+$BUILD/" pubspec.yaml
+          echo "✅ Version set to $VERSION+$BUILD"
+
+      # ── 9. توليد الكود (إن وُجد) ──────────
+      - name: ⚙️ Run code generation
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          if grep -q 'build_runner' pubspec.yaml 2>/dev/null; then
+            echo "Running build_runner..."
+            dart run build_runner build --delete-conflicting-outputs
+          else
+            echo "build_runner not found, skipping."
+          fi
+
+      # ── 10. تحليل الكود ───────────────────
+      - name: 🔍 Flutter analyze
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+
+      # ── 11. بناء APK release ──────────────
+      - name: 🏗️ Build release APK
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --build-name=${{ env.VERSION }} \
+            --build-number=${{ env.BUILD_NUMBER }} \
+            --dart-define=APP_ENV=production
+
+      # ── 12. تسمية الملفات ─────────────────
+      - name: 📋 Rename APK files
+        run: |
+          mkdir -p dist/android
+          for f in ${{ env.MOBILE_DIR }}/build/app/outputs/flutter-apk/app-*-release.apk; do
+            ARCH=$(basename "$f" | sed 's/app-//' | sed 's/-release.apk//')
+            cp "$f" "dist/android/Gold4-v${{ env.VERSION }}-${ARCH}.apk"
+          done
+          # أيضاً نسخ الـ fat APK إن وُجد
+          FAT="${{ env.MOBILE_DIR }}/build/app/outputs/flutter-apk/app-release.apk"
+          [ -f "$FAT" ] && cp "$FAT" "dist/android/Gold4-v${{ env.VERSION }}-universal.apk" || true
+          ls -lh dist/android/
+
+      # ── 13. رفع الـ artifact ──────────────
+      - name: 📤 Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ env.VERSION }}
+          path: dist/android/*.apk
+          retention-days: 30
+
+
+# ╔══════════════════════════════════════════╗
+# ║        2 - Windows EXE Build             ║
+# ╚══════════════════════════════════════════╝
+  build-windows:
+    name: 🖥️ Build Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      # ── 1. سحب الكود ──────────────────────
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Flutter ────────────────────────
+      - name: 🐦 Setup Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # ── 3. Pub cache ──────────────────────
+      - name: 📦 Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\Pub\Cache
+            ${{ env.MOBILE_DIR }}\.dart_tool
+          key: pub-windows-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: pub-windows-
+
+      # ── 4. إنشاء .env ─────────────────────
+      - name: 🌍 Create .env file
+        shell: pwsh
+        run: |
+          $envContent = @"
+          API_BASE_URL=${{ secrets.API_BASE_URL || 'https://api.gold4.app' }}
+          APP_ENV=production
+          "@
+          Set-Content -Path "${{ env.MOBILE_DIR }}\.env" -Value $envContent
+          Write-Host "✅ .env created"
+
+      # ── 5. flutter pub get ────────────────
+      - name: 📥 Install dependencies
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: flutter pub get
+
+      # ── 6. تحديث رقم الإصدار ──────────────
+      - name: 🏷️ Set version
+        shell: pwsh
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          $ver = "${{ github.event.inputs.version || github.ref_name }}".TrimStart('v')
+          $build = "${{ github.event.inputs.build_number || github.run_number }}"
+          Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$ver"
+          Add-Content -Path $env:GITHUB_ENV -Value "BUILD_NUMBER=$build"
+          (Get-Content pubspec.yaml) -replace '^version:.*', "version: $ver+$build" |
+            Set-Content pubspec.yaml
+          Write-Host "✅ Version set to $ver+$build"
+
+      # ── 7. توليد الكود (إن وُجد) ──────────
+      - name: ⚙️ Run code generation
+        working-directory: ${{ env.MOBILE_DIR }}
+        shell: pwsh
+        run: |
+          $content = Get-Content pubspec.yaml -Raw
+          if ($content -match 'build_runner') {
+            dart run build_runner build --delete-conflicting-outputs
+          } else {
+            Write-Host "build_runner not found, skipping."
+          }
+
+      # ── 8. تمكين Windows desktop ──────────
+      - name: 🪟 Enable Windows desktop
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: flutter config --enable-windows-desktop
+
+      # ── 9. بناء Windows release ───────────
+      - name: 🏗️ Build Windows release
+        working-directory: ${{ env.MOBILE_DIR }}
+        run: |
+          flutter build windows `
+            --release `
+            --build-name=${{ env.VERSION }} `
+            --build-number=${{ env.BUILD_NUMBER }} `
+            --dart-define=APP_ENV=production
+
+      # ── 10. تجميع ملفات الإصدار ───────────
+      - name: 📦 Package Windows build
+        shell: pwsh
+        run: |
+          $srcDir  = "${{ env.MOBILE_DIR }}\build\windows\x64\runner\Release"
+          $outDir  = "dist\windows"
+          $zipName = "Gold4-v${{ env.VERSION }}-windows-x64.zip"
+
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          # ضغط كل مجلد الإصدار في ZIP واحد
+          Compress-Archive -Path "$srcDir\*" -DestinationPath "$outDir\$zipName" -Force
+
+          # التحقق
+          Get-Item "$outDir\$zipName" | Select-Object Name, @{N='Size(MB)';E={[math]::Round($_.Length/1MB,2)}}
+          Write-Host "✅ Windows ZIP ready: $zipName"
+
+      # ── 11. رفع الـ artifact ──────────────
+      - name: 📤 Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe-${{ env.VERSION }}
+          path: dist/windows/*.zip
+          retention-days: 30
+
+
+# ╔══════════════════════════════════════════╗
+# ║        3 - GitHub Release                ║
+# ╚══════════════════════════════════════════╝
+  create-release:
+    name: 🎉 Create GitHub Release
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    # يعمل فقط عند push بـ tag أو تشغيل يدوي
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v4
+
+      # ── تحميل كل الـ artifacts ────────────
+      - name: 📥 Download Android APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: android-apk-*
+          path: release-assets/android
+          merge-multiple: true
+
+      - name: 📥 Download Windows ZIP
+        uses: actions/download-artifact@v4
+        with:
+          pattern: windows-exe-*
+          path: release-assets/windows
+          merge-multiple: true
+
+      - name: 📋 List release assets
+        run: find release-assets -type f | sort
+
+      # ── تحديد رقم الإصدار ─────────────────
+      - name: 🏷️ Resolve version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "RELEASE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+          fi
+
+      # ── إنشاء Release notes تلقائي ────────
+      - name: 📝 Generate release notes
+        run: |
+          cat > release_notes.md <<EOF
+          ## 🪙 Gold-4 Accounting Suite — v${{ env.RELEASE_VERSION }}
+
+          ### التغييرات في هذا الإصدار
+          <!-- يتم تعبئتها تلقائياً من CHANGELOG.md أو يدوياً -->
+          $(grep -A 30 "## \[" CHANGELOG.md 2>/dev/null | head -35 || echo "_راجع CHANGELOG.md للتفاصيل_")
+
+          ---
+
+          ### 📥 التنزيلات
+
+          | الملف | النظام | الوصف |
+          |-------|--------|-------|
+          | \`Gold4-v${{ env.RELEASE_VERSION }}-arm64-v8a.apk\` | Android (64-bit) | الأجهزة الحديثة |
+          | \`Gold4-v${{ env.RELEASE_VERSION }}-armeabi-v7a.apk\` | Android (32-bit) | الأجهزة القديمة |
+          | \`Gold4-v${{ env.RELEASE_VERSION }}-x86_64.apk\` | Android (محاكي) | المحاكيات |
+          | \`Gold4-v${{ env.RELEASE_VERSION }}-windows-x64.zip\` | Windows 10/11 | استخرج وشغّل EXE |
+
+          ### ℹ️ متطلبات التثبيت
+          - **Android**: النسخة 5.0 (Lollipop) أو أحدث — فعّل "مصادر مجهولة" عند التثبيت
+          - **Windows**: Windows 10 x64 أو أحدث — استخرج الـ ZIP ثم شغّل \`gold_4.exe\`
+
+          ### 💰 العملات المدعومة
+          الجنيه السوري (SYP) والدولار الأمريكي (USD)
+          EOF
+
+      # ── نشر الـ Release ────────────────────
+      - name: 🚀 Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:   v${{ env.RELEASE_VERSION }}
+          name:       "Gold-4 v${{ env.RELEASE_VERSION }}"
+          body_path:  release_notes.md
+          draft:      false
+          prerelease: false
+          files: |
+            release-assets/android/*.apk
+            release-assets/windows/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
