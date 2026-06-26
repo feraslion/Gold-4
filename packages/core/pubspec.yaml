@@ -1,0 +1,14 @@
+name: core
+description: Core business logic and entities for Gold-4 Accounting.
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.18.1
+  equatable: ^2.0.5
+  dartz: ^0.10.1
