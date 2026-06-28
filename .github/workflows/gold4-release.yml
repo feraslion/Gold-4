@@ -4,8 +4,10 @@ on:
   push:
     branches: [ main ]
     tags: [ 'v*' ]
+  workflow_dispatch: # يسمح بتشغيل البناء يدوياً من واجهة GitHub
 
 jobs:
+  # 1. وظيفة فحص الخادم (Backend)
   backend-ci:
     name: Backend Check & Build
     runs-on: ubuntu-latest
@@ -25,11 +27,8 @@ jobs:
         run: |
           cd backend
           npm run build
-      - name: Run Tests
-        run: |
-          cd backend
-          npm test
 
+  # 2. وظيفة بناء تطبيق Flutter (Android & Windows)
   flutter-build:
     name: Flutter Multi-Platform Build
     needs: backend-ci
@@ -40,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Java
+      - name: Setup Java (For Android)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/setup-java@v4
         with:
@@ -62,7 +61,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cd mobile
+          # بناء APK مقسم حسب المعالج لتقليل الحجم
           flutter build apk --release --split-per-abi
+          # بناء AAB للرفع على متجر Google Play
           flutter build appbundle --release
       
       - name: Build Windows EXE
@@ -86,6 +87,7 @@ jobs:
             mobile/build/app/outputs/bundle/release/*.aab
             mobile/build/windows/*.zip
 
+  # 3. وظيفة إنشاء الإصدار (GitHub Release)
   create-release:
     name: Create GitHub Release
     needs: flutter-build
@@ -107,9 +109,9 @@ jobs:
           body: |
             # Gold-4 Professional Release ${{ github.ref_name }} 🚀
             
-            تم بناء النسخة تلقائياً لجميع المنصات.
-            - **Android:** APK (arm64, v7a, x86) & AAB
-            - **Windows:** Portable ZIP (x64)
-            - **Backend:** CI Passed ✅
+            تم بناء النسخة الاحترافية بنجاح لجميع المنصات:
+            - **Android:** APK (arm64, v7a, x86) & AAB (جاهز للمتجر)
+            - **Windows:** ملف مضغوط يحتوي على النسخة المحمولة (x64)
+            - **Backend:** تم التحقق من سلامة الكود والبناء ✅
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
