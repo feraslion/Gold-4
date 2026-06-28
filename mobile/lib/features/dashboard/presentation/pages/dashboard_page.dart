@@ -113,7 +113,7 @@ class _DashboardPageState extends State<DashboardPage> {
           height: 180,
           child: BarChart(BarChartData(
             borderData: FlBorderData(show: false),
-            gridData: const FlGridData(show: false),
+            gridData: FlGridData(show: false),
             titlesData: FlTitlesData(
               leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               topTitles:  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -163,7 +163,7 @@ class _DashboardPageState extends State<DashboardPage> {
       onTap: () {},
       child: Column(children: [
         CircleAvatar(
-          backgroundColor: color.withOpacity(.15),
+          backgroundColor: color.withValues(alpha: 0.15),
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(height: 6),
@@ -182,7 +182,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ..._recentTx.map((tx) => ListTile(
         contentPadding: EdgeInsets.zero,
         leading: CircleAvatar(
-          backgroundColor: (tx['type'] == 'income' ? Colors.green : Colors.red).withOpacity(.15),
+          backgroundColor: (tx['type'] == 'income' ? Colors.green : Colors.red).withValues(alpha: 0.15),
           child: Icon(
             tx['type'] == 'income' ? Icons.arrow_downward : Icons.arrow_upward,
             color: tx['type'] == 'income' ? Colors.green : Colors.red,

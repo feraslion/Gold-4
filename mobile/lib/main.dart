@@ -7,6 +7,9 @@ import 'features/sales/presentation/pages/sales_page.dart';
 import 'features/inventory/presentation/pages/inventory_page.dart';
 import 'features/reports/presentation/pages/reports_page.dart';
 import 'features/settings/presentation/pages/settings_page.dart';
+import 'features/auth/presentation/pages/login_page.dart';
+import 'features/customers/presentation/pages/customers_page.dart';
+import 'features/pos/presentation/pages/pos_page.dart';
 import 'shared/theme/app_theme.dart';
 
 void main() async {
@@ -36,7 +39,13 @@ class Gold4App extends StatelessWidget {
       locale: const Locale('ar', 'SY'),
       builder: (ctx, child) =>
           Directionality(textDirection: TextDirection.rtl, child: child!),
-      home: const AppShell(),
+      initialRoute: '/login',
+      routes: {
+        '/': (context) => const AppShell(),
+        '/login': (context) => const LoginPage(),
+        '/customers': (context) => const CustomersPage(),
+        '/pos': (context) => const POSPage(),
+      },
     );
   }
 }
@@ -51,9 +60,9 @@ class _AppShellState extends State<AppShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const _pages = [
-    DashboardPage(), SalesPage(), InventoryPage(), ReportsPage(), SettingsPage(),
+    DashboardPage(), SalesPage(), InventoryPage(), ReportsPage(), SettingsPage(), POSPage(), CustomersPage(),
   ];
-  static const _titles = ['لوحة التحكم', 'المبيعات', 'المخزون', 'التقارير', 'الإعدادات'];
+  static const _titles = ['لوحة التحكم', 'المبيعات', 'المخزون', 'التقارير', 'الإعدادات', 'نقطة البيع', 'العملاء'];
 
   @override
   Widget build(BuildContext context) {
@@ -73,8 +82,9 @@ class _AppShellState extends State<AppShell> {
       drawer: _AppDrawer(onNav: (i) { setState(() => _idx = i); Navigator.pop(context); }),
       body: IndexedStack(index: _idx, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _idx,
+        currentIndex: _idx > 4 ? 0 : _idx,
         onTap: (i) => setState(() => _idx = i),
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined),    activeIcon: Icon(Icons.dashboard),    label: 'الرئيسية'),
           BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined),  activeIcon: Icon(Icons.receipt_long), label: 'المبيعات'),
@@ -105,7 +115,7 @@ class _AppDrawer extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
               width: 64, height: 64,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(.2), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
               child: const Icon(Icons.diamond, color: Colors.white, size: 36),
             ),
             const SizedBox(height: 10),
@@ -118,14 +128,11 @@ class _AppDrawer extends StatelessWidget {
         _tile(context, Icons.receipt_long_outlined,        'المبيعات',           () => onNav(1)),
         _tile(context, Icons.inventory_2_outlined,         'المخزون',            () => onNav(2)),
         _tile(context, Icons.bar_chart_outlined,           'التقارير',           () => onNav(3)),
-        _tile(context, Icons.people_outline,               'العملاء',            () {}),
-        _tile(context, Icons.local_shipping_outlined,      'الموردون',           () {}),
-        _tile(context, Icons.account_balance_outlined,     'القيود المحاسبية',   () {}),
-        _tile(context, Icons.point_of_sale_outlined,       'نقطة البيع (POS)',  () {}),
+        _tile(context, Icons.people_outline,               'العملاء',            () => onNav(6)),
+        _tile(context, Icons.point_of_sale_outlined,       'نقطة البيع (POS)',  () => onNav(5)),
         const Divider(),
-        _tile(context, Icons.backup_outlined,              'نسخة احتياطية',     () {}),
         _tile(context, Icons.settings_outlined,            'الإعدادات',         () => onNav(4)),
-        _tile(context, Icons.logout,                       'تسجيل الخروج',      () {}, danger: true),
+        _tile(context, Icons.logout,                       'تسجيل الخروج',      () => Navigator.pushReplacementNamed(context, '/login'), danger: true),
       ]),
     );
   }
