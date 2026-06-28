@@ -1,0 +1,115 @@
+name: Gold-4 Professional Unified Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+jobs:
+  backend-ci:
+    name: Backend Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Dependencies
+        run: |
+          cd backend
+          npm ci
+      - name: Build Backend
+        run: |
+          cd backend
+          npm run build
+      - name: Run Tests
+        run: |
+          cd backend
+          npm test
+
+  flutter-build:
+    name: Flutter Multi-Platform Build
+    needs: backend-ci
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: 'stable'
+          cache: true
+      
+      - name: Install Flutter Dependencies
+        run: |
+          cd mobile
+          flutter pub get
+
+      - name: Build Android (APK & AAB)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd mobile
+          flutter build apk --release --split-per-abi
+          flutter build appbundle --release
+      
+      - name: Build Windows EXE
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd mobile
+          flutter build windows --release
+      
+      - name: Archive Windows Release
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path mobile/build/windows/runner/Release/* -DestinationPath mobile/build/windows/gold4-windows-x64.zip
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-builds
+          path: |
+            mobile/build/app/outputs/flutter-apk/*.apk
+            mobile/build/app/outputs/bundle/release/*.aab
+            mobile/build/windows/*.zip
+
+  create-release:
+    name: Create GitHub Release
+    needs: flutter-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ubuntu-latest-builds/*.apk
+            ubuntu-latest-builds/*.aab
+            windows-latest-builds/*.zip
+          body: |
+            # Gold-4 Professional Release ${{ github.ref_name }} 🚀
+            
+            تم بناء النسخة تلقائياً لجميع المنصات.
+            - **Android:** APK (arm64, v7a, x86) & AAB
+            - **Windows:** Portable ZIP (x64)
+            - **Backend:** CI Passed ✅
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
