@@ -1,23 +1,12 @@
 #!/bin/bash
-
-echo "Building Gold-4 Accounting Suite..."
-
+set -e
+echo "🚀 Gold-4 Build Script"
 cd mobile
-
-echo "1. Building Android APK..."
-flutter build apk --release
-
-echo "2. Building Android App Bundle..."
-flutter build appbundle --release
-
-echo "3. Building Web..."
-flutter build web --release
-
-echo "4. Building Windows (if on Windows)..."
+flutter pub get
+echo "🤖 Building Android APKs..."
+flutter build apk --release --split-per-abi
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    flutter build windows --release
-else
-    echo "Skipping Windows build (not on Windows)"
+  echo "🖥️ Building Windows..."
+  flutter build windows --release
 fi
-
-echo "Build complete. Check build/ directory."
+echo "🎉 Done!"

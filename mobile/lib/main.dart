@@ -1,193 +1,139 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/constants/app_constants.dart';
-import 'core/utils/currency_converter.dart';
+import 'features/dashboard/presentation/pages/dashboard_page.dart';
+import 'features/sales/presentation/pages/sales_page.dart';
+import 'features/inventory/presentation/pages/inventory_page.dart';
+import 'features/reports/presentation/pages/reports_page.dart';
+import 'features/settings/presentation/pages/settings_page.dart';
+import 'shared/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
   runApp(const Gold4App());
 }
 
 class Gold4App extends StatelessWidget {
   const Gold4App({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
-        useMaterial3: true,
-        fontFamily: 'Cairo',
-      ),
+      theme: AppTheme.light,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('ar', 'SY'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('ar', 'SY'), Locale('en', 'US')],
       locale: const Locale('ar', 'SY'),
-      home: const MainDashboard(),
+      builder: (ctx, child) =>
+          Directionality(textDirection: TextDirection.rtl, child: child!),
+      home: const AppShell(),
     );
   }
 }
 
-class MainDashboard extends StatefulWidget {
-  const MainDashboard({super.key});
-
-  @override
-  State<MainDashboard> createState() => _MainDashboardState();
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+  @override State<AppShell> createState() => _AppShellState();
 }
 
-class _MainDashboardState extends State<MainDashboard> {
-  int _selectedIndex = 0;
+class _AppShellState extends State<AppShell> {
+  int _idx = 0;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  static const List<Widget> _pages = [
-    DashboardOverview(),
-    PlaceholderWidget(title: 'المبيعات'),
-    PlaceholderWidget(title: 'المخازن'),
-    PlaceholderWidget(title: 'التقارير'),
-    PlaceholderWidget(title: 'الإعدادات'),
+  static const _pages = [
+    DashboardPage(), SalesPage(), InventoryPage(), ReportsPage(), SettingsPage(),
   ];
+  static const _titles = ['لوحة التحكم', 'المبيعات', 'المخزون', 'التقارير', 'الإعدادات'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        title: const Text(AppConstants.appName),
-        centerTitle: true,
-        elevation: 2,
-        backgroundColor: Colors.amber,
+        title: Text(_titles[_idx]),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        actions: [
+          IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+        ],
       ),
-      body: _pages[_selectedIndex],
+      drawer: _AppDrawer(onNav: (i) { setState(() => _idx = i); Navigator.pop(context); }),
+      body: IndexedStack(index: _idx, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.amber[800],
-        unselectedItemColor: Colors.grey,
+        currentIndex: _idx,
+        onTap: (i) => setState(() => _idx = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'المبيعات'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'المخازن'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'التقارير'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات'),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined),    activeIcon: Icon(Icons.dashboard),    label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined),  activeIcon: Icon(Icons.receipt_long), label: 'المبيعات'),
+          BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined),   activeIcon: Icon(Icons.inventory_2),  label: 'المخزون'),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined),     activeIcon: Icon(Icons.bar_chart),    label: 'التقارير'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined),      activeIcon: Icon(Icons.settings),     label: 'الإعدادات'),
         ],
-      ),
-      drawer: const AppDrawer(),
-    );
-  }
-}
-
-class DashboardOverview extends StatelessWidget {
-  const DashboardOverview({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'نظرة عامة',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('إجمالي المبيعات', 5000000, Colors.green)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildStatCard('إجمالي المصاريف', 1200000, Colors.red)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildExchangeRateCard(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String title, double amount, Color color) {
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 10),
-            Text(
-              CurrencyConverter.formatSYP(amount),
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-            ),
-            Text(
-              CurrencyConverter.formatUSD(CurrencyConverter.toUSD(amount)),
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExchangeRateCard() {
-    return Card(
-      color: Colors.blueGrey[50],
-      child: ListTile(
-        leading: const Icon(Icons.currency_exchange, color: Colors.blue),
-        title: const Text('سعر صرف الدولار اليوم'),
-        trailing: Text(
-          '${AppConstants.currentExchangeRate} SYP',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
       ),
     );
   }
 }
 
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
+class _AppDrawer extends StatelessWidget {
+  final void Function(int) onNav;
+  const _AppDrawer({required this.onNav});
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.amber),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircleAvatar(radius: 30, backgroundColor: Colors.white, child: Icon(Icons.person, size: 40)),
-                SizedBox(height: 10),
-                Text('مدير النظام', style: TextStyle(color: Colors.white, fontSize: 18)),
-              ],
+      child: ListView(padding: EdgeInsets.zero, children: [
+        DrawerHeader(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFFFB300), Color(0xFFFFA000)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
           ),
-          ListTile(leading: const Icon(Icons.people), title: const Text('العملاء'), onTap: () {}),
-          ListTile(leading: const Icon(Icons.local_shipping), title: const Text('الموردون'), onTap: () {}),
-          ListTile(leading: const Icon(Icons.account_balance), title: const Text('الحسابات القيود'), onTap: () {}),
-          ListTile(leading: const Icon(Icons.backup), title: const Text('نسخة احتياطية'), onTap: () {}),
-          const Divider(),
-          ListTile(leading: const Icon(Icons.logout), title: const Text('تسجيل الخروج'), onTap: () {}),
-        ],
-      ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(color: Colors.white.withOpacity(.2), shape: BoxShape.circle),
+              child: const Icon(Icons.diamond, color: Colors.white, size: 36),
+            ),
+            const SizedBox(height: 10),
+            Text(AppConstants.appName,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('نظام المحاسبة الذهبي', style: TextStyle(color: Colors.white70, fontSize: 12)),
+          ]),
+        ),
+        _tile(context, Icons.dashboard_outlined,          'الرئيسية',           () => onNav(0)),
+        _tile(context, Icons.receipt_long_outlined,        'المبيعات',           () => onNav(1)),
+        _tile(context, Icons.inventory_2_outlined,         'المخزون',            () => onNav(2)),
+        _tile(context, Icons.bar_chart_outlined,           'التقارير',           () => onNav(3)),
+        _tile(context, Icons.people_outline,               'العملاء',            () {}),
+        _tile(context, Icons.local_shipping_outlined,      'الموردون',           () {}),
+        _tile(context, Icons.account_balance_outlined,     'القيود المحاسبية',   () {}),
+        _tile(context, Icons.point_of_sale_outlined,       'نقطة البيع (POS)',  () {}),
+        const Divider(),
+        _tile(context, Icons.backup_outlined,              'نسخة احتياطية',     () {}),
+        _tile(context, Icons.settings_outlined,            'الإعدادات',         () => onNav(4)),
+        _tile(context, Icons.logout,                       'تسجيل الخروج',      () {}, danger: true),
+      ]),
     );
   }
-}
 
-class PlaceholderWidget extends StatelessWidget {
-  final String title;
-  const PlaceholderWidget({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(child: Text('صفحة $title قيد التطوير', style: const TextStyle(fontSize: 20)));
-  }
+  Widget _tile(BuildContext ctx, IconData icon, String label, VoidCallback onTap, {bool danger = false}) =>
+      ListTile(
+        leading: Icon(icon, color: danger ? Colors.red : const Color(0xFF795548), size: 22),
+        title: Text(label, style: TextStyle(color: danger ? Colors.red : null, fontSize: 14)),
+        onTap: onTap,
+      );
 }

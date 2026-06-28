@@ -1,6 +1,21 @@
-name: accounting_suite
+name: gold4_suite
+
 packages:
   - mobile
-  - desktop
-  - web
   - packages/*
+
+scripts:
+  analyze:
+    run: flutter analyze --no-fatal-infos
+    exec:
+      concurrency: 3
+
+  test:
+    run: flutter test
+    exec:
+      concurrency: 1
+
+  pub_get:
+    run: flutter pub get
+    exec:
+      concurrency: 3
