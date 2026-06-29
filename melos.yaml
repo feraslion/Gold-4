@@ -1,19 +1,7 @@
-name: gold_4_monorepo
+name: accounting_app
 
 packages:
-  - mobile
-  - backend
-  - packages/**
+  - app
 
-scripts:
-  get:
-    run: melos exec -- "flutter pub get"
-    description: Run pub get in all packages
-  
-  analyze:
-    run: melos exec -- "flutter analyze"
-    description: Run analyze in all packages
-  
-  build:backend:
-    run: cd backend && npm install && npm run build
-    description: Build backend project
+ignore:
+  - backend

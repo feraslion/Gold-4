@@ -86,7 +86,7 @@ class _SalesPageState extends State<SalesPage> {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFFFB300).withOpacity(.15),
+          backgroundColor: const Color(0xFFFFB300).withValues(alpha: .15),
           child: Text('#${inv['id']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFB300))),
         ),
         title: Text(inv['customer'], style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -97,7 +97,7 @@ class _SalesPageState extends State<SalesPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: statusColors[inv['status']]!.withOpacity(.15),
+              color: statusColors[inv['status']]!.withValues(alpha: .15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(statusLabels[inv['status']]!, style: TextStyle(color: statusColors[inv['status']], fontSize: 11)),

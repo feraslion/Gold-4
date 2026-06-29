@@ -81,7 +81,7 @@ class _InventoryPageState extends State<InventoryPage> {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFFFB300).withOpacity(.15),
+          backgroundColor: const Color(0xFFFFB300).withValues(alpha: .15),
           child: const Icon(Icons.diamond, color: Color(0xFFFFB300)),
         ),
         title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),

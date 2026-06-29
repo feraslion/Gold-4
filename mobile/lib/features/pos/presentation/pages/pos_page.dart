@@ -1,7 +1,64 @@
 import 'package:flutter/material.dart';
+import '../../../../core/network/api_client.dart';
 
-class POSPage extends StatelessWidget {
+class POSPage extends StatefulWidget {
   const POSPage({super.key});
+
+  @override
+  State<POSPage> createState() => _POSPageState();
+}
+
+class _POSPageState extends State<POSPage> {
+  final _api = ApiClient();
+  List _products = [];
+  bool _isLoading = true;
+  // ignore: unused_field
+  final List _cartItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final data = await _api.get("/products");
+      setState(() {
+        _products = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل المنتجات: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveInvoice() async {
+    try {
+      await _api.post("/invoices", {
+        "customerId": "default", // TODO: Implement customer selection
+        "items": _cartItems,
+        "discount": 0,
+        "tax": 0,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ الفاتورة بنجاح')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في حفظ الفاتورة: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -10,26 +67,38 @@ class POSPage extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: 12,
-              itemBuilder: (context, index) => Card(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.inventory_2, size: 32, color: Colors.blue),
-                    const SizedBox(height: 8),
-                    Text('منتج ${index + 1}', style: const TextStyle(fontSize: 12)),
-                    const Text('50,000 ل.س', style: TextStyle(fontSize: 10, color: Colors.green)),
-                  ],
-                ),
-              ),
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: _products.length,
+                    itemBuilder: (context, index) {
+                      final product = _products[index];
+                      return Card(
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _cartItems.add(product);
+                            });
+                          },
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.inventory_2, size: 32, color: Colors.blue),
+                              const SizedBox(height: 8),
+                              Text(product['name'] ?? 'بدون اسم', style: const TextStyle(fontSize: 12)),
+                              Text('${product['price'] ?? 0} ل.س', style: const TextStyle(fontSize: 10, color: Colors.green)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
           Container(
             padding: const EdgeInsets.all(16),
@@ -44,11 +113,11 @@ class POSPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('الإجمالي', style: TextStyle(color: Colors.grey)),
-                    Text('600,000 ل.س', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('0 ل.س', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _saveInvoice,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,

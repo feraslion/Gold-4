@@ -31,7 +31,7 @@ class StatCard extends StatelessWidget {
               Row(children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: color.withOpacity(.15),
+                  backgroundColor: color.withValues(alpha: .15),
                   child: Icon(icon, color: color, size: 20),
                 ),
                 const SizedBox(width: 10),

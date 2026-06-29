@@ -6,17 +6,21 @@ describe('AppController', () => {
   let appController: AppController;
 
   beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
       providers: [AppService],
     }).compile();
 
-    appController = app.get<AppController>(AppController);
+    appController = module.get<AppController>(AppController);
   });
 
   describe('root', () => {
-    it('should return health status', () => {
-      expect(appController.health()).toEqual({ status: 'ok' });
+    it('should return application status', () => {
+      expect(appController.getStatus()).toEqual({
+        status: 'ok',
+        service: 'backend',
+        version: expect.any(String),
+      });
     });
   });
 });
